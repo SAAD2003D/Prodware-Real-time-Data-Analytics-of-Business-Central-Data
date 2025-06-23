@@ -1,0 +1,29 @@
+{
+  "name": "sqlserver-inventory-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.sqlserver.SqlServerConnector",
+    "tasks.max": "1",
+    "database.hostname": "host.docker.internal",
+    "database.port": "1433",
+    "database.user": "debezium_user",
+    "database.password": "123456",
+    "database.names": "OUTIPRO",
+    "database.server.name": "sqlserver-outipro", 
+    "topic.prefix": "cdc.sqlserver", 
+    "table.include.list": "dbo.OUTIPRO COPY\\$Item Ledger Entry\\$437dbf0e-84ff-417a-965d-ed2bb9650972,dbo.OUTIPRO COPY\\$Value Entry\\$437dbf0e-84ff-417a-965d-ed2bb9650972,dbo.OUTIPRO COPY\\$Item\\$437dbf0e-84ff-417a-965d-ed2bb9650972,dbo.OUTIPRO COPY\\$Customer\\$437dbf0e-84ff-417a-965d-ed2bb9650972,dbo.OUTIPRO COPY\\$Vendor\\$437dbf0e-84ff-417a-965d-ed2bb9650972,dbo.OUTIPRO COPY\\$Salesperson_Purchaser\\$437dbf0e-84ff-417a-965d-ed2bb9650972,dbo.OUTIPRO COPY\\$Location\\$437dbf0e-84ff-417a-965d-ed2bb9650972",
+    
+    "snapshot.mode": "initial",
+    "snapshot.isolation.mode": "read_uncommitted",
+    "decimal.handling.mode": "double",
+    "time.precision.mode": "connect",
+    "include.schema.changes": "false", 
+
+    
+    "schema.history.internal.kafka.bootstrap.servers": "kafka_broker_host:29092", 
+    "schema.history.internal.kafka.topic": "schemahistory.sqlserver.outipro", 
+
+
+    "database.encrypt": "false",
+    "database.trust.server.certificate": "false"
+  }
+}

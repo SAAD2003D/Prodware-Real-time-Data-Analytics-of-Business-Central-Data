@@ -1,0 +1,121 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0 # Using your specified version
+    hostname: zookeeper
+    container_name: zookeeper_cdc # Added _cdc suffix for clarity
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ['CMD', 'bash', '-c', "echo 'ruok' | nc localhost 2181 || exit 1"] # Added || exit 1 for better healthcheck
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cdc_kafka_net
+   # volumes:
+   #   - zookeeper_data_cdc:/data
+   #   - zookeeper_datalog_cdc:/datalog
+    
+
+  kafka: # Renamed service from 'broker' to 'kafka' for clarity, matches BOOTSTRAP_SERVERS
+    image: confluentinc/cp-server:7.4.0 # Using your specified version (cp-server includes Kafka broker)
+    hostname: kafka_broker_host # Unique hostname inside container
+    container_name: kafka_broker_cdc # Added _cdc suffix
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092" # For host access to Kafka
+      # - "29092:29092" # Port for internal Docker network access, if different from host
+      - "9101:9101" # JMX
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181' # Correct: zookeeper service name
+      KAFKA_ZOOKEEPER_SESSION_TIMEOUT_MS: 36000
+
+      # Listeners: How Kafka listens
+      # INTERNAL: for communication within the Docker network (e.g., connect to kafka)
+      # EXTERNAL: for communication from outside Docker (e.g., your laptop to kafka)
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka_broker_host:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL # For broker-to-broker communication if you had multiple brokers
+
+      # KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: http://schema-registry:8081 # Commented out as schema-registry is not in this compose
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: kafka_broker_host # Use the internal hostname
+
+      # Metrics Reporter (can keep if needed, but ensure it doesn't cause issues if not fully configured)
+      KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter
+      CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: kafka_broker_host:29092 # Use internal listener
+      CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
+      CONFLUENT_METRICS_ENABLE: 'false' # Set to true if you want metrics
+      CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
+    healthcheck:
+      test: ['CMD', 'bash', '-c', "nc -z localhost 29092 || exit 1"] # Check internal listener; added || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cdc_kafka_net
+    volumes: 
+      - kafka_data_cdc:/var/lib/kafka/data
+
+  connect:
+    image: debezium/connect:2.5 # Using your specified Debezium version
+    hostname: connect_host # Unique hostname
+    container_name: connect_cdc
+    ports:
+      - "8083:8083"
+    depends_on:
+      kafka: # Changed from depends_on: - kafka to depends_on: kafka: (service_healthy)
+        condition: service_healthy # Wait for Kafka to be healthy
+    environment:
+      BOOTSTRAP_SERVERS: 'kafka_broker_host:29092' # Connect to Kafka's INTERNAL advertised listener
+      GROUP_ID: '1'
+      CONFIG_STORAGE_TOPIC: connect_configs_cdc
+      CONFIG_STORAGE_REPLICATION_FACTOR: '1'
+      OFFSET_STORAGE_TOPIC: connect_offsets_cdc
+      OFFSET_STORAGE_REPLICATION_FACTOR: '1'
+      STATUS_STORAGE_TOPIC: connect_statuses_cdc
+      STATUS_STORAGE_REPLICATION_FACTOR: '1'
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: 'true'
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: 'true'
+    networks:
+      - cdc_kafka_net
+  kafdrop:
+    image: obsidiandynamics/kafdrop
+    container_name: kafdrop_cdc
+    restart: always
+    ports:
+      - "9000:9000" # Kafdrop UI port
+    environment:
+      KAFKA_BROKERCONNECT: "kafka_broker_host:29092" # Internal Kafka address
+      JVM_OPTS: "-Xms32M -Xmx64M"
+      SERVER_SERVLET_CONTEXTPATH: "/"
+    networks:
+      - cdc_kafka_net
+    depends_on:
+      - kafka
+
+networks:
+  cdc_kafka_net:
+    driver: bridge
+
+volumes: # <<<<<<<<<<<<<<<<<<< DEFINE THE NAMED VOLUMES HERE AT THE END
+  kafka_data_cdc:
+  #zookeeper_data_cdc:
+  #zookeeper_datalog_cdc:
