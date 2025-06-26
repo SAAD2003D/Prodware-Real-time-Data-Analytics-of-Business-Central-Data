@@ -1,6 +1,46 @@
 version: '3.8'
 
 services:
+  spark: # This is your Spark Master service, named 'spark'
+    image: docker.io/bitnami/spark:3.2.3
+    container_name: spark_master_s3
+    hostname: spark # For spark://spark:7077 resolution
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      # - BITNAMI_DEBUG=true # For verbose Bitnami startup logs
+    ports:
+      - '8080:8080' # Master Web UI
+      - '7077:7077' # Master RPC Port
+    volumes:
+      # Path from this docker-compose.yml to your host's 'work' directory
+      - ../../work:/opt/bitnami/spark/work # Example: if 'work' is at your_main_project_folder/work
+    networks:
+      - cdc_kafka_net
+    healthcheck: {test: ["CMD", "nc", "-z", "localhost", "7077"], interval: 10s, timeout: 5s, retries: 5}
+
+
+  spark-worker-1:
+    image: docker.io/bitnami/spark:3.2.3
+    container_name: spark_worker_1_s3
+    hostname: spark-worker-1-host # Unique hostname
+    depends_on:
+      spark: # Depends on the service named 'spark' (your master)
+        condition: service_healthy
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark:7077 # Points to the 'spark' service
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1 # Test with 1 core
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no # Match master
+      - SPARK_RPC_ENCRYPTION_ENABLED=no     # Match master
+    volumes:
+      - ../../work:/opt/bitnami/spark/work # Match master
+    networks:
+      - cdc_kafka_net
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0 # Using your specified version
     hostname: zookeeper
@@ -101,9 +141,9 @@ services:
     container_name: kafdrop_cdc
     restart: always
     ports:
-      - "9000:9000" # Kafdrop UI port
+      - "9000:9000" 
     environment:
-      KAFKA_BROKERCONNECT: "kafka_broker_host:29092" # Internal Kafka address
+      KAFKA_BROKERCONNECT: "kafka_broker_host:29092" 
       JVM_OPTS: "-Xms32M -Xmx64M"
       SERVER_SERVLET_CONTEXTPATH: "/"
     networks:
@@ -111,11 +151,32 @@ services:
     depends_on:
       - kafka
 
+  spark-app-driver: # Your Spark application driver service
+    build:
+      # Path from this docker-compose.yml to the directory with your app's Dockerfile
+      context: ../spark_streaming
+      dockerfile: Dockerfile
+    container_name: spark_app_driver_s3
+    hostname: spark-app-driver-host # Hostname for spark.driver.host
+    depends_on:
+      - spark 
+      - kafka # If your app connects to Kafka
+        
+    environment:
+      SPARK_DRIVER_HOSTNAME: "spark-app-driver-host"
+      KAFKA_BOOTSTRAP_SERVERS_CONFIG: "kafka_broker_host:29092" 
+      KAFKA_TOPIC_CONFIG: "cdc.sqlserver.OUTIPRO.dbo.OUTIPRO_COPY_Location_437dbf0e-84ff-417a-965d-ed2bb9650972"
+    networks:
+      - cdc_kafka_net
+    ports: # For Spark Driver UI from host
+      - "4040:4040"
+   
+      
+
+
 networks:
   cdc_kafka_net:
     driver: bridge
 
-volumes: # <<<<<<<<<<<<<<<<<<< DEFINE THE NAMED VOLUMES HERE AT THE END
+volumes: 
   kafka_data_cdc:
-  #zookeeper_data_cdc:
-  #zookeeper_datalog_cdc:
