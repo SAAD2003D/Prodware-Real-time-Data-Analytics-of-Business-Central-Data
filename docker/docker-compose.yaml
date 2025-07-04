@@ -17,6 +17,8 @@ services:
       - '7077:7077' # Master RPC Port
     volumes:
       # Path from this docker-compose.yml to your host's 'work' directory
+      
+      - ../spark-output:/app/output
       - ../../work:/opt/bitnami/spark/work # Example: if 'work' is at your_main_project_folder/work
     networks:
       - cdc_kafka_net
@@ -28,19 +30,41 @@ services:
     container_name: spark_worker_1_s3
     hostname: spark-worker-1-host # Unique hostname
     depends_on:
-      spark: # Depends on the service named 'spark' (your master)
-        condition: service_healthy
+      - spark
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark:7077 # Points to the 'spark' service
-      - SPARK_WORKER_MEMORY=1G
-      - SPARK_WORKER_CORES=1 # Test with 1 core
+      - SPARK_WORKER_MEMORY=4G
+      - SPARK_WORKER_CORES=2 # Test with 1 core
       - SPARK_RPC_AUTHENTICATION_ENABLED=no # Match master
       - SPARK_RPC_ENCRYPTION_ENABLED=no     # Match master
     volumes:
+     
+      - ../spark-output:/app/output
       - ../../work:/opt/bitnami/spark/work # Match master
     networks:
       - cdc_kafka_net
+  spark-worker-2:
+    image: docker.io/bitnami/spark:3.2.3
+    container_name: spark_worker_2_s3
+    hostname: spark-worker-2-host # Unique hostname
+    depends_on:
+      - spark # Depends on the service named 'spark' (your master)
+        
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark:7077 # Points to the 'spark' service
+      - SPARK_WORKER_MEMORY=4G
+      - SPARK_WORKER_CORES=2 # Test with 1 core
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no # Match master
+      - SPARK_RPC_ENCRYPTION_ENABLED=no     # Match master
+    volumes:
+      
+      - ../spark-output:/app/output
+      - ../../work:/opt/bitnami/spark/work # Match master
+    networks:
+      - cdc_kafka_net
+  
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0 # Using your specified version
     hostname: zookeeper
@@ -165,18 +189,157 @@ services:
     environment:
       SPARK_DRIVER_HOSTNAME: "spark-app-driver-host"
       KAFKA_BOOTSTRAP_SERVERS_CONFIG: "kafka_broker_host:29092" 
-      KAFKA_TOPIC_CONFIG: "cdc.sqlserver.OUTIPRO.dbo.OUTIPRO_COPY_Location_437dbf0e-84ff-417a-965d-ed2bb9650972"
+      KAFKA_ILE_TOPIC: "cdc.sqlserver.OUTIPRO.dbo.OUTIPRO_COPY_Item_Ledger_Entry_437dbf0e-84ff-417a-965d-ed2bb9650972"
+      KAFKA_VE_TOPIC: "cdc.sqlserver.OUTIPRO.dbo.OUTIPRO_COPY_Value_Entry_437dbf0e-84ff-417a-965d-ed2bb9650972"
+      KAFKA_ITEM_MASTER_TOPIC: "cdc.sqlserver.OUTIPRO.dbo.OUTIPRO_COPY_Item_437dbf0e-84ff-417a-965d-ed2bb9650972"
+      KAFKA_CUSTOMER_MASTER_TOPIC : "cdc.sqlserver.OUTIPRO.dbo.OUTIPRO_COPY_Customer_437dbf0e-84ff-417a-965d-ed2bb9650972"
+      KAFKA_VENDOR_MASTER_TOPIC : "cdc.sqlserver.OUTIPRO.dbo.OUTIPRO_COPY_Vendor_437dbf0e-84ff-417a-965d-ed2bb9650972" 
+      KAFKA_SALESPERSON_TOPIC : "cdc.sqlserver.OUTIPRO.dbo.OUTIPRO_COPY_Salesperson_Purchaser_437dbf0e-84ff-417a-965d-ed2bb9650972"
+      KAFKA_LOCATION_TOPIC : "cdc.sqlserver.OUTIPRO.dbo.OUTIPRO_COPY_Location_437dbf0e-84ff-417a-965d-ed2bb9650972"
+      KAFKA_ITEM_CATEGORY_TOPIC : "cdc.sqlserver.OUTIPRO.dbo.OUTIPRO_COPY_Item_Category_437dbf0e-84ff-417a-965d-ed2bb9650972"
+      KAFKA_ITEM_GROUP_TOPIC : "cdc.sqlserver.OUTIPRO.dbo.OUTIPRO_COPY_Product_Group_437dbf0e-84ff-417a-965d-ed2bb9650972"
+      KAFKA_PROCESSED_TOPIC : "processed-turnover-events"
+    volumes:
+      - ../spark-output:/app/output
+
+      
     networks:
       - cdc_kafka_net
     ports: # For Spark Driver UI from host
       - "4040:4040"
    
-      
+  ## Druid Cluster Services 
+# In your docker-compose.yml
+
+  # ---------------------
+  # Druid Cluster Services (Using an Environment File)
+  # ---------------------
+  # ---------------------
+# Druid Cluster Services (Corrected Version)
+# ---------------------
+
+  
 
 
-networks:
-  cdc_kafka_net:
-    driver: bridge
+
+  postgres:
+    container_name: postgres
+    image: postgres:latest
+    ports:
+      - "5432:5432"
+    volumes:
+      - metadata_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=FoolishPassword
+      - POSTGRES_USER=druid
+      - POSTGRES_DB=druid
+    networks:
+      - cdc_kafka_net
+  # Need 3.5 or later for container nodes
+ 
+
+  coordinator:
+    image: apache/druid:32.0.1
+    container_name: coordinator
+    volumes:
+      - druid_shared:/opt/shared
+      - coordinator_var:/opt/druid/var
+    depends_on:
+      - zookeeper
+      - postgres
+    ports:
+      - "8081:8081"
+    command:
+      - coordinator
+    env_file:
+      - environment
+    networks:
+      - cdc_kafka_net
+  broker:
+    image: apache/druid:32.0.1
+    container_name: broker
+    volumes:
+      - broker_var:/opt/druid/var
+    depends_on:
+      - zookeeper
+      - postgres
+      - coordinator
+    ports:
+      - "8082:8082"
+    command:
+      - broker
+    env_file:
+      - environment
+    networks:
+      - cdc_kafka_net
+
+  historical:
+    image: apache/druid:32.0.1
+    container_name: historical
+    volumes:
+      - druid_shared:/opt/shared
+      - historical_var:/opt/druid/var
+    depends_on: 
+      - zookeeper
+      - postgres
+      - coordinator
+    ports:
+      - "8083:8083"
+    command:
+      - historical
+    env_file:
+      - environment
+    networks:
+      - cdc_kafka_net
+
+  middlemanager:
+    image: apache/druid:32.0.1
+    container_name: middlemanager
+    volumes:
+      - druid_shared:/opt/shared
+      - middle_var:/opt/druid/var
+    depends_on: 
+      - zookeeper
+      - postgres
+      - coordinator
+    ports:
+      - "8091:8091"
+      - "8100-8105:8100-8105"
+    command:
+      - middleManager
+    env_file:
+      - environment
+    networks:
+      - cdc_kafka_net
+
+  router:
+    image: apache/druid:32.0.1
+    container_name: router
+    volumes:
+      - router_var:/opt/druid/var
+    depends_on:
+      - zookeeper
+      - postgres
+      - coordinator
+    ports:
+      - "8888:8888"
+    command:
+      - router
+    env_file:
+      - environment
+    networks:
+      - cdc_kafka_net
 
 volumes: 
   kafka_data_cdc:
+  metadata_data: {}
+  middle_var: {}
+  historical_var: {}
+  broker_var: {}
+  coordinator_var: {}
+  router_var: {}
+  druid_shared: {}
+
+networks:
+  cdc_kafka_net:
+   driver: bridge

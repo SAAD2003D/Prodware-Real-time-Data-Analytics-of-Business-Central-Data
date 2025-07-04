@@ -1,0 +1,63 @@
+{
+  "type": "kafka",
+  "spec": {
+    "dataSchema": {
+      "dataSource": "sales_purchase_turnover_with_dimensions",
+      "timestampSpec": {
+        "column": "__time",
+        "format": "iso"
+      },
+      "dimensionsSpec": {
+        "dimensions": [
+          "item_no",
+          "item_name",
+          "item_category_code_from_item",
+          "item_category_name",
+          "item_group_code_from_item",
+          "item_group_name",
+          "customer_no",
+          "customer_name",
+          "customer_city",
+          "customer_country",
+          "vendor_no",
+          "vendor_name",
+          "salesperson_code",
+          "salesperson_name",
+          "location_code",
+          "location_name",
+          "document_no",
+          "transaction_type"
+        ]
+      },
+      "metricsSpec": [
+        { "type": "doubleSum", "name": "total_sales_turnover", "fieldName": "sales_turnover" },
+        { "type": "doubleSum", "name": "total_purchase_turnover", "fieldName": "purchase_turnover" },
+        { "type": "doubleSum", "name": "total_quantity", "fieldName": "quantity" },
+        { "type": "count", "name": "transaction_count" }
+      ],
+      "granularitySpec": {
+        "type": "uniform",
+        "segmentGranularity": "DAY",
+        "queryGranularity": "NONE",
+        "rollup": true
+      }
+    },
+    "ioConfig": {
+      "type": "kafka",
+      "consumerProperties": {
+        "bootstrap.servers": "kafka:29092"
+      },
+      "topic": "processed-turnover-events",
+      "inputFormat": {
+        "type": "json"
+      },
+      "useEarliestOffset": true
+    },
+    "tuningConfig": {
+      "type": "kafka",
+      "partitionsSpec": {
+        "type": "dynamic"
+      }
+    }
+  }
+}
