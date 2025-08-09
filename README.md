@@ -109,10 +109,15 @@ Once all services are running, you can interact with the pipeline.
 ## Project Structure
 
 ├── docker/ # Dockerfiles for custom service images
+
 ├── druid/ # Configuration for Apache Druid services
+
 ├── kafka_cdc/ # Configuration for Kafka, Zookeeper, and Debezium Connector
+
 ├── spark_streaming/ # The Apache Spark Streaming application code and dependencies
+
 ├── superset/ # Configuration for Apache Superset
+
 ├── README.md # This file
 
 
