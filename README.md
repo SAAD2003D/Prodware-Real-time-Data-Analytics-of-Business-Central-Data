@@ -24,9 +24,8 @@ This project demonstrates a complete real-time data analytics pipeline. It captu
 ## Architecture
 
 The data flows through the system as follows:
+<img width="960" height="429" alt="image" src="https://github.com/user-attachments/assets/8d4e1685-fe2f-4d4f-85c1-6cc2336666cd" />
 
-![Architecture Diagram](https://raw.githubusercontent.com/SAAD2003D/Prodware-Real-time-Data-Analytics-of-Business-Central-Data/main/prodware-diagram-no-hadoop.png)
-*(This diagram is based on the provided screenshot, excluding Hadoop)*
 
 1.  **Data Source (Microsoft SQL Server):** Acts as the primary database, simulating a transactional system like Microsoft Dynamics 365 Business Central.
 2.  **Change Data Capture (Kafka Connect):** A Debezium SQL Server connector is deployed via Kafka Connect. It monitors the transaction log of the SQL Server database for any inserts, updates, or deletes and publishes these changes as events to a Kafka topic in real-time.
@@ -105,12 +104,34 @@ Once all services are running, you can interact with the pipeline.
     *(Note: We use the service name `druid-broker` because Superset is running in the same Docker network)*.
 -   Test the connection and save the database. You can now create charts and dashboards using the data ingested into Druid.
 
-### 3. Generate Sample Data
 
-To see the pipeline in action, you need to insert or update data in the source SQL Server database.
-
-1.  Connect to the SQL Server instance using your favorite SQL client (e.g., DBeaver, Azure Data Studio). Find the connection details (port, password) in the `docker-compose.yml` file under the `sqlserver` service.
-2.  Run SQL `INSERT` or `UPDATE` commands on the tables being monitored by Debezium.
-3.  Observe the data flowing through the pipeline and appearing on your Superset dashboard within seconds.
 
 ## Project Structure
+
+├── docker/ # Dockerfiles for custom service images
+├── druid/ # Configuration for Apache Druid services
+├── kafka_cdc/ # Configuration for Kafka, Zookeeper, and Debezium Connector
+├── spark_streaming/ # The Apache Spark Streaming application code and dependencies
+├── superset/ # Configuration for Apache Superset
+├── README.md # This file
+
+
+## Configuration
+
+-   **Environment Variables:** Key settings like ports, passwords, and topic names are managed in the `docker-compose.yml` file.
+-   **Debezium Connector:** The connector configuration is located in `kafka_cdc/register-sqlserver.json`. You can modify it to change which tables are monitored.
+-   **Spark Application:** The Spark job logic is located in the `spark_streaming/` directory.
+
+## Contributing
+
+Contributions are welcome! If you have suggestions for improvements or want to fix a bug, please feel free to:
+
+1.  Fork the repository.
+2.  Create a new feature branch (`git checkout -b feature/your-feature-name`).
+3.  Commit your changes (`git commit -m 'Add some feature'`).
+4.  Push to the branch (`git push origin feature/your-feature-name`).
+5.  Open a Pull Request.
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
