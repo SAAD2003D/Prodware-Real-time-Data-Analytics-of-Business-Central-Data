@@ -19,7 +19,7 @@ This project demonstrates a complete real-time data analytics pipeline. It captu
 - [Project Structure](#project-structure)
 - [Configuration](#configuration)
 - [Contributing](#contributing)
-- [License](#license)
+
 
 ## Architecture
 
